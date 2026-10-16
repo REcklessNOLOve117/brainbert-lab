@@ -7,3 +7,5 @@
 页面展示了原实现的短代码节选并附源码链接。真实信号与原始实现的权利及使用条件以原始发布方为准。本项目不重新授权第三方材料。
 
 本项目不包含预训练模型权重。
+
+PopT 章节的架构与公式说明依据 czlwang/PopulationTransformer（https://github.com/czlwang/PopulationTransformer），参考版本 d237755bbdea123c60bface0cecbb48bab6f42de；论文 https://arxiv.org/abs/2406.03044 。本项目对架构与数学计算作独立可视化实现；多电极坐标和活动均为合成教学输入，没有复制真实受试者的多电极数据。官方权重入口为 https://huggingface.co/PopulationTransformer/popt_brainbert_stft ，本项目未分发或加载该权重。

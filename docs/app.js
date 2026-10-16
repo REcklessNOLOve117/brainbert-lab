@@ -1,6 +1,7 @@
 import { makeInputEmbeddings, computeAttention, makeMaskedExample, stftWaveform } from './math.js';
 import { mountFineTune } from './finetune.js';
 import { mountArchitecture } from './architecture.js';
+import { mountPopT } from './popt.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { page: 0, frame: 93, band: 12, key: 83, head: 0, temperature: 1, padding: 0, source: 'real', version: 0, projection: 'norm', maskMode: 'both', probability: .1, seed: 7, error: .5, alpha: 2, output: 'embedding', spectrumView: 'zscore' };
@@ -11,8 +12,10 @@ const pages = [
   ['attention','TOKENS → CONTEXT','每一帧，都可以向其他帧提问。','选择 query 时间帧，切换 head，检查 Q/K/V 怎样决定信息的读取与汇总。','沿时间建立上下文'],
   ['masking','RECONSTRUCTION → LEARNING','遮住一部分，学会理解其余部分。','检查哪些位置参与监督。调整模拟误差，亲手核对一次重建 loss。','让 loss 对应到单元格'],
   ['outputs','BACKBONE → REPRESENTATION','同一个主干，选择不同的出口。','embedding 在预测头之前。切换任务，看清输出形状、池化位置和返回代码。','区分表示与预测'],
-  ['finetuning','REPRESENTATION → CLASSIFICATION','把学到的表示，用在你的任务里。','加载预训练主干，接上分类头。选择冻结、全量微调或 LoRA，沿梯度路径看哪些参数会改变。','理解分类与参数更新']
+  ['finetuning','REPRESENTATION → CLASSIFICATION','把学到的表示，用在你的任务里。','加载预训练主干，接上分类头。选择冻结、全量微调或 LoRA，沿梯度路径看哪些参数会改变。','理解分类与参数更新'],
+  ['popt','POPULATION TRANSFORMER','从一个电极，走向一组电极。','BrainBERT 沿时间提取每个电极的表示；PopT 结合电极坐标，学习跨电极的信息聚合。点击架构，操作多电极注意力实验。','理解空间聚合与自监督任务']
 ];
+const pageNames = ['模型架构','波形与时频图','从频谱到 token','多头注意力','遮挡与 loss','取表示还是预测','分类与微调','PopT 多电极模型'];
 let original, data, playTimer = null, embCache = new Map(), attentionCache = new Map(), maskCache = null, frameRAF = 0;
 const mono = 'ui-monospace, SFMono-Regular, Consolas, monospace';
 const colors = { ink:'#567569', muted:'#71816e', line:'#eaf0e4', green:'#087f69', light:'#c7e0a0', orange:'#d39465' };
@@ -177,9 +180,11 @@ function goPage(index,scroll=true) {
   document.querySelectorAll('[data-lesson]').forEach((el,i)=>el.hidden=i!==state.page);
   document.querySelectorAll('[data-page]').forEach((el,i)=>{el.classList.toggle('active',i===state.page);el.setAttribute('aria-current',i===state.page?'step':'false');});
   $('chapter-kicker').textContent=String(state.page+1).padStart(2,'0')+' / '+p[1];$('chapter-title').textContent=p[2];$('chapter-desc').textContent=p[3];
-  $('chapter-count').innerHTML=String(state.page+1).padStart(2,'0')+'<span>/ 07</span>';$('lesson-progress').textContent=String(state.page+1).padStart(2,'0')+' / 07 · '+p[4];
-  $('previous').disabled=state.page===0;$('next').textContent=state.page===6?'回到模型架构 ↺':'下一节：'+['模型架构','波形与时频图','从频谱到 token','多头注意力','遮挡与 loss','取表示还是预测','分类与微调'][state.page+1]+' →';
-  $('sample-bar').hidden=state.page===0||state.page===6;$('synthetic-controls').hidden=state.page===0||state.page===6||state.source!=='synthetic';
+  const total=String(pages.length).padStart(2,'0');
+  $('chapter-count').innerHTML=String(state.page+1).padStart(2,'0')+'<span>/ '+total+'</span>';$('lesson-progress').textContent=String(state.page+1).padStart(2,'0')+' / '+total+' · '+p[4];
+  $('previous').disabled=state.page===0;$('next').textContent=state.page===pages.length-1?'回到模型架构 ↺':'下一节：'+pageNames[state.page+1]+' →';
+  const usesTimeSample=state.page>=1&&state.page<=5;
+  $('sample-bar').hidden=!usesTimeSample;$('synthetic-controls').hidden=!usesTimeSample||state.source!=='synthetic';
   if(location.hash!=='#'+p[0])history.replaceState(null,'','#'+p[0]);
   if(scroll)window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
   requestAnimationFrame(render);
@@ -228,7 +233,7 @@ function wire(){
 
 async function boot(){
   try{const response=await fetch('./brain-data.json');if(!response.ok)throw new Error('样本数据加载失败：'+response.status);original=await response.json();data=original;if(data.stft.values.length!==186||data.stft.values[0].length!==40)throw new Error('样本形状与预期不一致');
-    mountFineTune($('finetune-container'));mountArchitecture($('architecture-container'));wire();const index=pages.findIndex(x=>'#'+x[0]===location.hash);goPage(index<0?0:index,false);$('loading').hidden=true;
+    mountFineTune($('finetune-container'));mountArchitecture($('architecture-container'));mountPopT($('popt-container'));wire();const index=pages.findIndex(x=>'#'+x[0]===location.hash);goPage(index<0?0:index,false);$('loading').hidden=true;
   }catch(error){console.error(error);$('loading').innerHTML='<div class="error-message"><b>页面还没能加载完整。</b><p>'+escape(error.message)+'</p><button class="btn" onclick="location.reload()">重新加载</button></div>';}
 }
 boot();

@@ -2,15 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="从一段真实脑电出发，交互理解 BrainBERT 的 STFT、时间 token、多头注意力、遮挡重建、分类与微调。">
-  <meta name="theme-color" content="#f5f6f2"><title>BrainBERT · 脑电表示实验室</title>
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="description" content="交互理解 BrainBERT 与 Population Transformer (PopT)：从单电极 STFT 和时间表示，到多电极坐标编码、空间注意力、自监督与分类。">
+  <meta name="theme-color" content="#f5f6f2"><title>BrainBERT + PopT · 脑电表示实验室</title>
+  <link rel="stylesheet" href="./styles.css?v=popt-20261016">
+  <link rel="stylesheet" href="./popt.css?v=popt-20261016">
 </head>
 <body>
 <a class="skip" href="#main">跳到内容</a>
 <aside class="sidebar">
   <a class="brand" href="#architecture" aria-label="BrainBERT 实验室首页"><span class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M3 17h5l3-9 5 17 5-20 3 12h5" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg></span><span>BrainBERT<small>INTERACTIVE LAB</small></span></a>
-  <div class="nav-label">从信号到表示 <span>07 LESSONS</span></div>
+  <div class="nav-label">从信号到表示 <span>08 LESSONS</span></div>
   <nav id="navigation" aria-label="学习章节">
     <button class="nav-item active" data-page="0"><span class="nav-num">01</span><span>模型架构总览<small>从输入到任务出口</small></span><span class="nav-dot"></span></button>
     <button class="nav-item" data-page="1"><span class="nav-num">02</span><span>波形与时频图<small>看见频率的变化</small></span><span class="nav-dot"></span></button>
@@ -19,13 +20,14 @@
     <button class="nav-item" data-page="4"><span class="nav-num">05</span><span>遮挡、重建与 loss<small>表示是怎样学出来的</small></span><span class="nav-dot"></span></button>
     <button class="nav-item" data-page="5"><span class="nav-num">06</span><span>取表示，还是做预测<small>读懂模型的两种输出</small></span><span class="nav-dot"></span></button>
     <button class="nav-item" data-page="6"><span class="nav-num">07</span><span>分类与微调<small>冻结 · 全量 · LoRA</small></span><span class="nav-dot"></span></button>
+    <button class="nav-item" data-page="7"><span class="nav-num">08</span><span>PopT 多电极模型<small>从时间表示到空间聚合</small></span><span class="nav-dot"></span></button>
   </nav>
-  <div class="sidebar-bottom"><div class="mini-wave" aria-hidden="true">▁▂▁▅▃▆▂▁▃▇▄▂▃▅▂▁▃▅▁</div><span class="eyebrow">ONE SIGNAL. SEVEN PERSPECTIVES.</span><p>把每一个张量，<br>放回它所在的计算步骤。</p><a href="https://github.com/czlwang/brainbert" target="_blank" rel="noopener noreferrer">查看源代码 ↗</a><small>基于仓库 large 配置 · cd2aaa8</small></div>
+  <div class="sidebar-bottom"><div class="mini-wave" aria-hidden="true">▁▂▁▅▃▆▂▁▃▇▄▂▃▅▂▁▃▅▁</div><span class="eyebrow">TIME × ELECTRODES.</span><p>把每一个张量，<br>放回它所在的计算步骤。</p><a href="https://github.com/czlwang/brainbert" target="_blank" rel="noopener noreferrer">BrainBERT 源码 ↗</a><br><a href="https://github.com/czlwang/PopulationTransformer" target="_blank" rel="noopener noreferrer">PopT 源码 ↗</a><small>BrainBERT · cd2aaa8 / PopT · d237755</small></div>
 </aside>
 <div class="workspace">
  <header class="topbar"><span class="breadcrumb">BrainToken <span>/</span> 模型学习笔记</span><div class="top-actions"><span class="status-dot"></span><span>真实样本 · 交互讲解</span><button class="icon-button" id="info-button" aria-label="查看数据与演示说明">ⓘ</button></div></header>
  <main id="main">
-  <div class="page-heading"><div><div class="eyebrow" id="chapter-kicker">01 / MODEL ARCHITECTURE</div><h1 id="chapter-title">先把整张模型地图，放在眼前。</h1><p id="chapter-desc">从输入编码到六层 Encoder，再到表示、重建与分类。点击模块，查看它的形状、用途和源码。</p></div><span class="chapter-count" id="chapter-count">01<span>/ 07</span></span></div>
+  <div class="page-heading"><div><div class="eyebrow" id="chapter-kicker">01 / MODEL ARCHITECTURE</div><h1 id="chapter-title">先把整张模型地图，放在眼前。</h1><p id="chapter-desc">从输入编码到六层 Encoder，再到表示、重建与分类。点击模块，查看它的形状、用途和源码。</p></div><span class="chapter-count" id="chapter-count">01<span>/ 08</span></span></div>
   <div class="sample-bar" id="sample-bar"><label class="source-field">信号来源<select id="signal-source"><option value="real">仓库真实样本 · 单电极 / 5 s</option><option value="synthetic">可调双频信号 · 教学合成</option></select></label><div class="sample-divider"></div><div class="frame-control"><button id="play" class="play-button" aria-label="播放时间帧">▶</button><label for="frame-slider">时间帧 <strong id="frame-number">094</strong><span id="frame-time">2.515 s</span></label><input id="frame-slider" type="range" min="0" max="185" value="93" aria-label="选中时间帧"></div><span class="shape-pill">[1, 186, 40]</span></div>
   <div id="synthetic-controls" class="synthetic-controls" hidden><label>低频 <input id="freq-a" type="range" min="5" max="50" value="12"><output id="freq-a-value">12 Hz</output></label><label>高频 <input id="freq-b" type="range" min="55" max="180" value="80"><output id="freq-b-value">80 Hz</output></label><label>高频振幅 <input id="amp-b" type="range" min="0" max="2" step="0.05" value="0.6"><output id="amp-b-value">0.60</output></label><span>信号为两种随时间变化的正弦 + 固定弱噪声；STFT 在浏览器实时计算。</span></div>
   <section class="lesson" data-lesson="0" id="architecture-container"></section>
@@ -56,11 +58,12 @@
    <div class="grid-two output-detail"><div class="card"><span class="eyebrow">FOLLOW THE SHAPES</span><h2 id="output-detail-title">每帧一个 768 维表示</h2><canvas id="output-visual" data-height="244" role="img" aria-label="输出张量结构示意"></canvas><p class="small muted" id="output-visual-note">色块仅示意张量结构，不是预训练 Transformer 输出。</p></div><div class="code-card"><div class="code-head"><span id="code-source">masked_tf_model.py</span><span class="code-dot"></span></div><pre id="output-code"></pre><div class="code-explanation" id="output-explanation"></div></div></div><div class="insight"><span class="insight-icon">.pth</span><div><strong>权重文件保存参数，embedding 是输入经过参数计算后的结果。</strong><p>输入投影和 Transformer 都属于预训练主干。分类时跳过重建头，新增分类头，并用带标签的数据训练。</p></div></div>
   </section>
   <section class="lesson" data-lesson="6" id="finetune-container" hidden></section>
-  <div class="lesson-footer"><button class="btn ghost" id="previous">← 上一节</button><span id="lesson-progress">01 / 07 · 先看清模型的完整结构</span><button class="btn primary" id="next">下一节：波形与时频图 →</button></div>
-  <footer class="site-footer"><span>BrainBERT / 交互学习笔记</span><span>真实信号与 STFT · 固定随机投影与教学模拟</span><a href="https://arxiv.org/abs/2302.14367" target="_blank" rel="noopener noreferrer">论文 ↗</a></footer>
+  <section class="lesson" data-lesson="7" id="popt-container" hidden></section>
+  <div class="lesson-footer"><button class="btn ghost" id="previous">← 上一节</button><span id="lesson-progress">01 / 08 · 先看清模型的完整结构</span><button class="btn primary" id="next">下一节：波形与时频图 →</button></div>
+  <footer class="site-footer"><span>BrainBERT + PopT / 交互学习笔记</span><span>真实单电极样本 · PopT 合成多电极数学演示</span><a href="https://arxiv.org/abs/2302.14367" target="_blank" rel="noopener noreferrer">BrainBERT 论文 ↗</a><a href="https://arxiv.org/abs/2406.03044" target="_blank" rel="noopener noreferrer">PopT 论文 ↗</a></footer>
  </main>
 </div>
-<dialog id="info-dialog"><div class="dialog-top"><span class="eyebrow">DATA & COMPUTATION</span><button class="icon-button" id="close-info" aria-label="关闭说明">×</button></div><h2>哪些是真实的，哪些是演示？</h2><p><b>真实样本：</b>仓库 notebooks/example_wav_1.npy，单电极 10,240 点。采样率 2,048 Hz，依据原 demo；µV 也依据 demo 纵轴标注，文件本身不含单位元数据。</p><p><b>真实预处理：</b>按训练代码计算 STFT 幅值、逐频点 z-score、两侧各裁 10 帧。demo 的裁剪与标准化顺序不同，本页采用训练实现。</p><p><b>数学演示：</b>输入投影和 Q/K/V 使用固定随机权重。softmax、加权求和、L1、BCE 都按公式计算。</p><p><b>尚未加载预训练权重：</b>重建与分类结果是教学数值；不代表模型性能。LoRA 是扩展教学方案，原仓库未实现。</p><p><b>微调术语：</b>“popt”暂按 PEFT/LoRA 理解，同时展示仓库实际支持的冻结主干与全量分类微调。</p><a class="btn primary" href="https://github.com/czlwang/brainbert" target="_blank" rel="noopener noreferrer">阅读代码 ↗</a></dialog>
+<dialog id="info-dialog"><div class="dialog-top"><span class="eyebrow">DATA & COMPUTATION</span><button class="icon-button" id="close-info" aria-label="关闭说明">×</button></div><h2>哪些是真实的，哪些是演示？</h2><p><b>真实样本：</b>仓库 notebooks/example_wav_1.npy，单电极 10,240 点。采样率 2,048 Hz，依据原 demo；µV 也依据 demo 纵轴标注，文件本身不含单位元数据。</p><p><b>真实预处理：</b>按训练代码计算 STFT 幅值、逐频点 z-score、两侧各裁 10 帧。demo 的裁剪与标准化顺序不同，本页采用训练实现。</p><p><b>数学演示：</b>输入投影和 Q/K/V 使用固定随机权重。softmax、加权求和、L1、BCE 都按公式计算。</p><p><b>尚未加载预训练权重：</b>重建与分类结果是教学数值；不代表模型性能。LoRA 是扩展教学方案，原仓库未实现。</p><p><b>PopT：</b>Population Transformer 是独立的多电极聚合模型，不是 PEFT/LoRA 的别称。第 08 节按官方源码展示架构；多电极活动与注意力使用合成数据和固定随机参数，不代表预训练权重或真实脑连接。</p><a class="btn primary" href="https://github.com/czlwang/brainbert" target="_blank" rel="noopener noreferrer">阅读代码 ↗</a></dialog>
 <div id="loading" class="loading-overlay"><span class="loader"></span><span>正在展开一段脑电信号…</span></div>
-<script type="module" src="./app.js"></script>
+<script type="module" src="./app.js?v=popt-20261016"></script>
 </body></html>
